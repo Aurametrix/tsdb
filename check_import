@@ -1,0 +1,60 @@
+#!/usr/bin/env python
+
+import sys
+import os.path
+
+import tsdb
+
+DB = "test_import"
+
+type_map = {
+    'ifHCInOctets': tsdb.Counter64,
+    'ifHCOutOctets': tsdb.Counter64,
+    'ifInOctets': tsdb.Counter32,
+    'ifOutOctets': tsdb.Counter32,
+    'sysUpTimeInstance': tsdb.Counter32
+}
+
+db = tsdb.TSDB(DB)
+
+for arg in sys.argv[1:]:
+    (rtr,out) = arg.split(".")
+    print rtr
+
+    if rtr not in db.list_sets():
+        set = db.add_set(rtr)
+    else:
+        set = db.get_set(rtr)
+
+    vartab = {}
+    f = open(arg, "r")
+    for line in f:
+        #        print line
+        line = line.strip()
+        if line == '':
+            continue
+
+        (tstamp, var, val) = line.split()
+        tstamp = int(tstamp)
+        val = int(val)
+
+        type = type_map[var.split('.')[0]]
+
+
+        if var not in vartab:
+            vartab[var] = set.get_var(var)
+
+        dbval = vartab[var].select(tstamp)
+
+        if dbval.value != val:
+            print line
+            print val,'!=',dbval.value,'tstamp',tstamp
+            print "offset", vartab[var]._chunk(tstamp)._offset(tstamp)
+            print "=" * 78
+
+        if dbval.timestamp != tstamp:
+            print line
+            print "timestamps don't match",tstamp,dbval.timestamp
+            print "offset", vartab[var]._chunk(tstamp)._offset(tstamp)
+            print "=" * 78
+
